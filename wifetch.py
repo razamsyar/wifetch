@@ -149,7 +149,7 @@ class WiFiPasswordViewer:
             try:
                 colored_print("[*] Checking NetworkManager connections...")
                 for conn_file in nm_path.iterdir():
-                    if conn_file.is_file() and conn_file.suffix == '':
+                    if conn_file.is_file() and (conn_file.suffix == '' or conn_file.suffix == '.nmconnection'):
                         try:
                             with open(conn_file, 'r', encoding='utf-8') as f:
                                 content = f.read()

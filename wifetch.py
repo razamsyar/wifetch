@@ -96,9 +96,29 @@ class WiFiPasswordViewer:
                     password_match = re.search(r'Key Content\s*:\s*(.+)', profile_info)
                     password = password_match.group(1).strip() if password_match else "<no stored key>"
                     
-                    # Extract security type
-                    security_match = re.search(r'Security key\s*:\s*(.+)', profile_info)
-                    security_type = security_match.group(1).strip() if security_match else "Unknown"
+                    # Extract security type - look for authentication and cipher info
+                    auth_match = re.search(r'Authentication\s*:\s*(.+)', profile_info)
+                    cipher_match = re.search(r'Cipher\s*:\s*(.+)', profile_info)
+                    
+                    if auth_match and cipher_match:
+                        auth = auth_match.group(1).strip().lower()
+                        cipher = cipher_match.group(1).strip().lower()
+                        
+                        if 'wpa' in auth or 'wpa' in cipher:
+                            security_type = "WPA/WPA2"
+                        elif 'wep' in auth or 'wep' in cipher:
+                            security_type = "WEP"
+                        elif 'open' in auth:
+                            security_type = "Open"
+                        else:
+                            security_type = "Unknown"
+                    else:
+                        # Fallback to security key presence
+                        security_match = re.search(r'Security key\s*:\s*(.+)', profile_info)
+                        if security_match and security_match.group(1).strip().lower() == 'present':
+                            security_type = "WPA/WPA2"  # Assume WPA if key is present
+                        else:
+                            security_type = "Open"
                     
                     self.profiles.append({
                         'network': profile,
@@ -154,8 +174,8 @@ class WiFiPasswordViewer:
                             with open(conn_file, 'r', encoding='utf-8') as f:
                                 content = f.read()
                                 
-                            # Extract SSID from [wifi] section
-                            ssid_match = re.search(r'\[wifi\].*?ssid=(.+)', content, re.DOTALL)
+                            # Extract SSID from [wifi] section - match until newline or end of section
+                            ssid_match = re.search(r'\[wifi\].*?ssid=([^\n\r]+)', content, re.DOTALL)
                             if ssid_match:
                                 ssid = ssid_match.group(1).strip()
                             else:
@@ -166,14 +186,14 @@ class WiFiPasswordViewer:
                             password = "<no stored key>"
                             security_type = "Open"
                             
-                            # Look for psk (pre-shared key) in wifi-security section
-                            psk_match = re.search(r'\[wifi-security\].*?psk=(.+)', content, re.DOTALL)
+                            # Look for psk (pre-shared key) in wifi-security section - match until newline
+                            psk_match = re.search(r'\[wifi-security\].*?psk=([^\n\r]+)', content, re.DOTALL)
                             if psk_match:
                                 password = psk_match.group(1).strip()
                                 security_type = "WPA/WPA2"
                             
-                            # Check key-mgmt for additional security type info
-                            key_mgmt_match = re.search(r'\[wifi-security\].*?key-mgmt=(.+)', content, re.DOTALL)
+                            # Check key-mgmt for additional security type info - match until newline
+                            key_mgmt_match = re.search(r'\[wifi-security\].*?key-mgmt=([^\n\r]+)', content, re.DOTALL)
                             if key_mgmt_match:
                                 key_mgmt = key_mgmt_match.group(1).strip()
                                 if key_mgmt == "wpa-psk":
@@ -462,6 +482,8 @@ class WiFiPasswordViewer:
                         elem = ET.SubElement(profile_elem, key)
                         elem.text = str(value)
                 
+                # Format XML with proper indentation
+                ET.indent(root, space="  ", level=0)
                 tree = ET.ElementTree(root)
                 tree.write(filename, encoding='utf-8', xml_declaration=True)
                 colored_print(f"Exported to {filename} (XML format)")

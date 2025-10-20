@@ -154,15 +154,32 @@ class WiFiPasswordViewer:
                             with open(conn_file, 'r', encoding='utf-8') as f:
                                 content = f.read()
                                 
-                            # Extract SSID
-                            ssid_match = re.search(r'ssid=(.+)', content)
-                            ssid = ssid_match.group(1).strip() if ssid_match else conn_file.stem
+                            # Extract SSID from [wifi] section
+                            ssid_match = re.search(r'\[wifi\].*?ssid=(.+)', content, re.DOTALL)
+                            if ssid_match:
+                                ssid = ssid_match.group(1).strip()
+                            else:
+                                # Fallback to filename if SSID not found in content
+                                ssid = conn_file.stem
                             
-                            # Extract password (psk)
-                            psk_match = re.search(r'psk=(.+)', content)
-                            password = psk_match.group(1).strip() if psk_match else "<no stored key>"
-                            # Extract security type
-                            security_type = "WPA/WPA2" if psk_match else "Open"
+                            # Extract password and security info from [wifi-security] section
+                            password = "<no stored key>"
+                            security_type = "Open"
+                            
+                            # Look for psk (pre-shared key) in wifi-security section
+                            psk_match = re.search(r'\[wifi-security\].*?psk=(.+)', content, re.DOTALL)
+                            if psk_match:
+                                password = psk_match.group(1).strip()
+                                security_type = "WPA/WPA2"
+                            
+                            # Check key-mgmt for additional security type info
+                            key_mgmt_match = re.search(r'\[wifi-security\].*?key-mgmt=(.+)', content, re.DOTALL)
+                            if key_mgmt_match:
+                                key_mgmt = key_mgmt_match.group(1).strip()
+                                if key_mgmt == "wpa-psk":
+                                    security_type = "WPA/WPA2"
+                                elif key_mgmt == "wep":
+                                    security_type = "WEP"
                             
                             self.profiles.append({
                                 'network': ssid,
